@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "toolpkg_id": "com.operit.memory_injector",
+  "version": "0.5.0",
+  "api_version": "1.0.0",
+  "main": "dist/main.js",
+  "display_name": {
+    "zh": "记忆注入",
+    "en": "Memory Injection",
+    "default": "Memory Injection"
+  },
+  "description": {
+    "zh": "无需智能体主动检索，在每次发送消息时自动把记忆库中的记忆（标题，可选附带摘要或完整正文）直接注入到输入上下文，并支持工具箱配置注入位置与内容策略。",
+    "en": "Automatically inject memories (titles, optionally with snippets or full content) from the memory library into the model input on every message, with toolbox settings for injection target and content strategy.",
+    "default": "Automatically inject memories into the input context on every message."
+  },
+  "enabled_by_default": false,
+  "subpackages": []
+}
