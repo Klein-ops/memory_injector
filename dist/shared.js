@@ -211,8 +211,9 @@ function buildInjectionBlock(settings, memories) {
     const lines = ["<memory>"];
     const maxSnippetLength = Math.max(0, Math.floor(settings.contentMaxLength) || 0);
     const mode = settings.contentMode || "title";
-    // 模式说明头：明确告知 AI 这份记忆的类型与来源（共享记忆），避免把他人记忆误当成本人经历
-    const sharedNote = "注意：以下记忆可能不是来自你本人，这是共享记忆。";
+    // 模式说明头：明确告知 AI 这份记忆的类型与来源（共享记忆），避免把他人记忆误当成本人经历；
+    // 并额外要求：与当前对话无关的记忆直接忽略，不要当作自己的经历或事实。
+    const sharedNote = "注意：以下记忆可能不是来自你本人，这是共享记忆。若某条记忆与你无关、对当前对话没有任何帮助，请直接忽略，不要将其当作自己的经历或事实。";
     if (mode === "title") {
         lines.push(`以下记忆仅标题（共 ${memories.length} 条），详细记忆请自行查看记忆库。${sharedNote}`);
     }
