@@ -5,14 +5,14 @@
   "api_version": "1.0.0",
   "main": "dist/main.js",
   "display_name": {
-    "zh": "记忆注入",
+    "zh": "更好的记忆",
     "en": "Memory Injection",
     "default": "Memory Injection"
   },
   "description": {
-    "zh": "无需智能体主动检索，在每次发送消息时自动把记忆库中的记忆（标题，可选附带摘要或完整正文）直接注入到输入上下文，并支持工具箱配置注入位置与内容策略。",
-    "en": "Automatically inject memories (titles, optionally with snippets or full content) from the memory library into the model input on every message, with toolbox settings for injection target and content strategy.",
-    "default": "Automatically inject memories into the input context on every message."
+    "zh": "记忆工具包：自动把记忆库中的记忆（标题，可选附带摘要或完整正文）注入到输入上下文，并为 AI 注入记忆使用准则（敏感信息保护、相关性判断、标题规范）。支持工具箱配置注入位置、内容策略与准则开关。",
+    "en": "Memory toolkit: automatically inject memories (titles, optionally with snippets or full content) from the memory library into the model input, and inject memory usage guidelines (sensitive info protection, relevance judgment, title conventions) into the system prompt. Configurable via toolbox.",
+    "default": "Memory toolkit with automatic memory injection and usage guidelines."
   },
   "enabled_by_default": false,
   "subpackages": []

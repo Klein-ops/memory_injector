@@ -1,16 +1,4 @@
 "use strict";
-/**
- * Memory Injector - ToolPkg entry
- *
- * 记忆自动注入器：
- *  - SystemPromptComposeHook(after_compose_system_prompt): 注入到系统提示词
- *  - PromptFinalizeHook(before_finalize_prompt): 注入到当前用户输入
- *  - InputMenuToggle: 输入菜单中的总开关
- *  - Toolbox UI: 工具箱配置页面（注入位置 / 内容策略 / 数量上限等）
- *
- * 注入内容来自记忆库（标题 / 摘要 / 完整正文），
- * 由宿主自动调用 query_memory 完成，不依赖智能体主动检索。
- */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -51,8 +39,10 @@ function shouldInjectUser(settings) {
     return settings.injectTarget === "user";
 }
 /**
- * 系统提示词注入：after_compose_system_prompt 阶段，
- * 把记忆标题附加到 systemPrompt 末尾。
+ * 系统提示词注入：after_compose_system_prompt 阶段。
+ * 1. 若开启了"注入记忆使用准则"（默认开启），把准则块拼到 systemPrompt 末尾；
+ * 2. 若注入目标为 system，再把记忆内容块拼到末尾。
+ * 准则与记忆注入相互独立：关闭记忆内容注入不影响准则注入。
  */
 async function onSystemPromptCompose(event) {
     const stage = String(event.eventName || event.event || "");
@@ -60,19 +50,33 @@ async function onSystemPromptCompose(event) {
         return null;
     }
     const settings = (0, shared_1.loadSettings)();
-    if (!shouldInjectSystem(settings)) {
+    let nextSystemPrompt = String(event.eventPayload?.systemPrompt || "");
+    let changed = false;
+    // 1. 记忆使用准则（独立于注入目标与记忆内容开关）
+    if (settings.injectGuidelines) {
+        const guidelines = (0, shared_1.buildGuidelinesBlock)();
+        if (guidelines) {
+            nextSystemPrompt = nextSystemPrompt
+                ? `${nextSystemPrompt}\n\n${guidelines}`
+                : guidelines;
+            changed = true;
+        }
+    }
+    // 2. 记忆内容注入（仅当注入目标为 system）
+    if (shouldInjectSystem(settings)) {
+        const chatId = String(event.eventPayload?.chatId || "").trim() || undefined;
+        const block = await resolveAndBuildBlock(chatId);
+        if (block) {
+            nextSystemPrompt = nextSystemPrompt
+                ? `${nextSystemPrompt}\n\n${block}`
+                : block;
+            changed = true;
+        }
+    }
+    if (!changed) {
         return null;
     }
-    const chatId = String(event.eventPayload?.chatId || "").trim() || undefined;
-    const block = await resolveAndBuildBlock(chatId);
-    if (!block) {
-        return null;
-    }
-    const currentSystemPrompt = String(event.eventPayload?.systemPrompt || "");
-    const nextSystemPrompt = currentSystemPrompt
-        ? `${currentSystemPrompt}\n\n${block}`
-        : block;
-    (0, shared_1.logMemoryInjectorInfo)("sysprompt.injected", `new_length=${nextSystemPrompt.length}`);
+    (0, shared_1.logMemoryInjectorInfo)("sysprompt.injected", `guidelines=${settings.injectGuidelines} new_length=${nextSystemPrompt.length}`);
     return { systemPrompt: nextSystemPrompt };
 }
 /**
@@ -157,7 +161,7 @@ function registerToolPkg() {
         screen: index_ui_js_1.default,
         params: {},
         title: {
-            zh: "记忆注入",
+            zh: "更好的记忆",
             en: "Memory Injection",
         },
     });

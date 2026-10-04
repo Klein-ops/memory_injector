@@ -168,6 +168,7 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
   const initial = loadSettings();
 
   const masterEnabledState = useStateValue(ctx, "masterEnabled", initial.masterEnabled);
+  const injectGuidelinesState = useStateValue(ctx, "injectGuidelines", initial.injectGuidelines);
   const injectTargetState = useStateValue(ctx, "injectTarget", initial.injectTarget);
   const contentModeState = useStateValue(ctx, "contentMode", initial.contentMode);
   const contentMaxLengthState = useStateValue(
@@ -183,9 +184,9 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
   const successMessageState = useStateValue(ctx, "successMessage", "");
   const errorMessageState = useStateValue(ctx, "errorMessage", "");
   const hasInitializedState = useStateValue(ctx, "hasInitialized", false);
-
   const syncSettings = (next: MemoryInjectorSettings): void => {
     masterEnabledState.set(next.masterEnabled);
+    injectGuidelinesState.set(next.injectGuidelines);
     injectTargetState.set(next.injectTarget);
     contentModeState.set(next.contentMode);
     contentMaxLengthState.set(next.contentMaxLength);
@@ -233,23 +234,35 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
       ctx.UI.Icon({ name: "memory", tint: "primary", size: 24 }),
       ctx.UI.Spacer({ width: 8 }),
       ctx.UI.Text({
-        text: "记忆注入",
+        text: "更好的记忆",
         style: "headlineSmall",
         fontWeight: "bold",
         color: "onSurface",
       }),
     ]),
     ctx.UI.Text({
-      text: "无需智能体主动检索，每次构建模型输入时自动把记忆库中的记忆注入到输入上下文。",
+      text: "记忆工具包：自动把记忆库中的记忆注入到输入上下文，并为 AI 提供记忆使用准则。",
       style: "bodyMedium",
       color: "onSurfaceVariant",
     }),
-
-    createSectionTitle(ctx, "settings", "总开关"),
+    createSectionTitle(ctx, "settings", "记忆使用准则"),
+    createToggleCard(
+      ctx,
+      "注入记忆使用准则",
+      "在系统提示词中注入记忆使用准则（敏感信息保护、相关性判断、标题规范等），默认开启",
+      injectGuidelinesState.value,
+      (checked) => {
+        persistSettings(
+          { injectGuidelines: checked },
+          checked ? "已开启记忆使用准则注入" : "已关闭记忆使用准则注入"
+        );
+      }
+    ),
+    createSectionTitle(ctx, "memory", "记忆注入（子功能）"),
     createToggleCard(
       ctx,
       "启用记忆注入",
-      "关闭后所有自动注入功能暂停",
+      "关闭后记忆内容不再自动注入（记忆使用准则注入不受影响）",
       masterEnabledState.value,
       (checked) => {
         persistSettings({ masterEnabled: checked }, checked ? "已启用记忆注入" : "已禁用记忆注入");
@@ -325,7 +338,12 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
             color: "onSecondaryContainer",
           }),
           ctx.UI.Text({
-            text: `开关：${masterEnabledState.value ? "已启用" : "已禁用"}`,
+            text: `记忆使用准则：${injectGuidelinesState.value ? "已注入" : "未注入"}`,
+            style: "bodySmall",
+            color: "onSecondaryContainer",
+          }),
+          ctx.UI.Text({
+            text: `记忆注入：${masterEnabledState.value ? "已启用" : "已禁用"}`,
             style: "bodySmall",
             color: "onSecondaryContainer",
           }),

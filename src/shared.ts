@@ -32,8 +32,9 @@ export type MemoryInjectorSettings = {
   contentMode: MemoryInjectContentMode;
   /** 摘要模式下单条内容摘要最大长度（字符） */
   contentMaxLength: number;
+  /** 是否在系统提示词中注入"记忆使用准则"（独立于注入目标） */
+  injectGuidelines: boolean;
 };
-
 export const DEFAULT_SETTINGS: MemoryInjectorSettings = {
   masterEnabled: true,
   // 默认注入到用户消息末尾：系统提示词变化会破坏 prompt 前缀缓存（OpenAI/Anthropic/DeepSeek 等），
@@ -41,6 +42,7 @@ export const DEFAULT_SETTINGS: MemoryInjectorSettings = {
   injectTarget: "user",
   contentMode: "title",
   contentMaxLength: 120,
+  injectGuidelines: true,
 };
 
 export function logMemoryInjectorInfo(event: string, detail?: string): void {
@@ -109,6 +111,9 @@ export function sanitizeSettings(
       Number.isFinite(contentMaxLength) && contentMaxLength >= 0
         ? Math.floor(contentMaxLength)
         : DEFAULT_SETTINGS.contentMaxLength,
+    injectGuidelines: Boolean(
+      input?.injectGuidelines ?? DEFAULT_SETTINGS.injectGuidelines
+    ),
   };
 }
 
@@ -298,7 +303,39 @@ export function buildInjectionBlock(
     }
   }
   lines.push("</memory>");
-
   const block = lines.join("\n");
   return block.length > 0 ? block : null;
+}
+/**
+ * 记忆使用准则（注入到系统提示词，独立于记忆内容注入）。
+ * 用户拟定草稿 + AI 补充改写，最终文本：
+ *   - 敏感信息保护
+ *   - 使用范围与相关性判断
+ *   - 标题是索引，正文才是知识
+ *   - 记忆的正确性与优先级
+ */
+export const MEMORY_GUIDELINES_TEXT = `记忆使用准则
+
+记忆库是你跨会话的长期知识存储；注入到上下文中的记忆块用于帮助你快速定位相关信息。请严格遵守以下准则：
+
+一、敏感信息保护
+1. 严禁将用户的个人敏感信息写入记忆库，包括但不限于：身份证号、银行卡号及支付密码、账号密码与短信验证码、家庭住址、手机号码、生物识别信息（指纹/人脸）、医疗健康记录等。
+2. 若上下文中已出现上述敏感信息（无论来自记忆注入还是用户消息），不得主动复述、传播或用于输出；仅在用户明确要求且必要的最小范围内使用。
+3. 遵循"最小必要"原则：不确定是否敏感的信息，默认按敏感处理，不写入记忆库。
+
+二、使用范围与相关性判断
+4. 记忆块以标题形式注入上下文（可能附带摘要或正文），其作用是帮助你快速发现相关信息，而非要求你全量依赖。
+5. 判断相关性：扫视标题后，若该记忆与当前对话主题、任务或用户意图无关，或对当前对话没有任何帮助，请直接忽略，不要将其当作自己的经历或事实，也不要强行引用。
+6. 需要细节时，按需调用 query_memory / get_memory_by_title 读取对应记忆的正文，不要仅凭标题臆测内容。
+
+三、标题是索引，正文才是知识
+7. 创建或更新记忆时，标题应简短、具体，并注明适用范围（建议格式：项目-主题-用途，如"某项目-架构方案-开发参考"），便于快速检索定位。
+8. 不要把知识塞进标题：标题只是索引，正文才是知识的载体。完整内容应写在正文中，保持结构化、可独立理解。
+9. 记忆面向未来复用：写入时注明关键上下文（时间、项目、结论），避免过时或产生歧义。
+
+四、记忆的正确性与优先级
+10. 记忆可能过时或来自共享：当记忆与当前对话中的明确信息冲突时，以当前对话为准，记忆仅作参考。
+11. 不得臆造或篡改记忆内容；若发现读取到的记忆有明显错误，应指出而非盲从。`;
+export function buildGuidelinesBlock(): string {
+  return `<memory_guidelines>\n${MEMORY_GUIDELINES_TEXT}\n</memory_guidelines>`;
 }
