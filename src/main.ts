@@ -201,7 +201,6 @@ export function onInputMenuToggle(
         ? "Auto-inject memories into the model input on every message"
         : "每次发送消息时自动把记忆注入到模型输入",
       isChecked: getMemoryInjectorEnabled(),
-      slot: "general",
     },
   ];
 }
