@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "toolpkg_id": "com.operit.memory_injector",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "api_version": "1.0.0",
   "main": "dist/main.js",
   "display_name": {
     "zh": "更好的记忆",
     "en": "Memory Injection",
     "default": "Memory Injection"
-  },
+},
   "description": {
-    "zh": "记忆工具包：自动把记忆库中的记忆（标题，可选附带摘要或完整正文）注入到输入上下文，并为 AI 注入记忆使用准则（敏感信息保护、相关性判断、标题规范）。支持工具箱配置注入位置、内容策略与准则开关。",
-    "en": "Memory toolkit: automatically inject memories (titles, optionally with snippets or full content) from the memory library into the model input, and inject memory usage guidelines (sensitive info protection, relevance judgment, title conventions) into the system prompt. Configurable via toolbox.",
-    "default": "Memory toolkit with automatic memory injection and usage guidelines."
+    "zh": "记忆工具包：自动把记忆库中的记忆（标题，可选附带摘要或完整正文）作为附件随最新用户输入注入（不写入聊天记录，历史旧记忆不反复占上下文），并在系统提示词注入记忆使用准则（克制写入、只记通用可复用、敏感信息保护、相关性判断、标题规范）。支持工具箱配置内容策略与准则开关。",
+    "en": "Memory toolkit: automatically attach memories (titles, optionally with snippets or full content) from the memory library to the latest user input as attachments (not persisted in chat history, so old memories do not keep occupying context), and inject memory usage guidelines (restrained writing, only generic reusable content, sensitive info protection, relevance judgment, title conventions) into the system prompt. Configurable via toolbox.",
+    "default": "Memory toolkit with attachment-based memory injection and usage guidelines."
   },
   "enabled_by_default": false,
   "subpackages": []

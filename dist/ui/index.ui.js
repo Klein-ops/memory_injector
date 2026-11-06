@@ -124,7 +124,6 @@ function Screen(ctx) {
     const initial = (0, shared_1.loadSettings)();
     const masterEnabledState = useStateValue(ctx, "masterEnabled", initial.masterEnabled);
     const injectGuidelinesState = useStateValue(ctx, "injectGuidelines", initial.injectGuidelines);
-    const injectTargetState = useStateValue(ctx, "injectTarget", initial.injectTarget);
     const contentModeState = useStateValue(ctx, "contentMode", initial.contentMode);
     const contentMaxLengthState = useStateValue(ctx, "contentMaxLength", initial.contentMaxLength);
     const contentMaxLengthInputState = useStateValue(ctx, "contentMaxLengthInput", String(initial.contentMaxLength));
@@ -134,7 +133,6 @@ function Screen(ctx) {
     const syncSettings = (next) => {
         masterEnabledState.set(next.masterEnabled);
         injectGuidelinesState.set(next.injectGuidelines);
-        injectTargetState.set(next.injectTarget);
         contentModeState.set(next.contentMode);
         contentMaxLengthState.set(next.contentMaxLength);
         contentMaxLengthInputState.set(String(next.contentMaxLength));
@@ -162,9 +160,6 @@ function Screen(ctx) {
         }
         persistSettings({ contentMaxLength: Math.floor(length) }, "已保存摘要长度上限");
     };
-    const targetDescription = injectTargetState.value === "system"
-        ? "注入到系统提示词末尾（注意：系统提示词变化可能破坏按前缀的 prompt 缓存）"
-        : "注入到用户消息末尾（推荐：不额外破坏 prompt 缓存）";
     const modeDescription = contentModeState.value === "title_snippet"
         ? "记忆正文截取前 N 个字符作为摘要拼在标题后面（N 为下方摘要长度上限）"
         : contentModeState.value === "title_body"
@@ -193,19 +188,6 @@ function Screen(ctx) {
         createSectionTitle(ctx, "memory", "记忆注入（子功能）"),
         createToggleCard(ctx, "启用记忆注入", "关闭后记忆内容不再自动注入（记忆使用准则注入不受影响）", masterEnabledState.value, (checked) => {
             persistSettings({ masterEnabled: checked }, checked ? "已启用记忆注入" : "已禁用记忆注入");
-        }),
-        createSectionTitle(ctx, "place", "注入位置"),
-        createSegmentSelector(ctx, [
-            { value: "user", label: "用户消息" },
-            { value: "system", label: "系统提示词" },
-        ], injectTargetState.value, (value) => {
-            persistSettings({ injectTarget: value });
-        }, masterEnabledState.value),
-        ctx.UI.Text({
-            text: targetDescription,
-            style: "bodySmall",
-            color: "onSurfaceVariant",
-            padding: { horizontal: 14 },
         }),
         createSectionTitle(ctx, "content", "注入内容"),
         createSegmentSelector(ctx, [
@@ -243,12 +225,7 @@ function Screen(ctx) {
                     color: "onSecondaryContainer",
                 }),
                 ctx.UI.Text({
-                    text: `记忆注入：${masterEnabledState.value ? "已启用" : "已禁用"}`,
-                    style: "bodySmall",
-                    color: "onSecondaryContainer",
-                }),
-                ctx.UI.Text({
-                    text: `位置：${injectTargetState.value === "system" ? "系统提示词" : "用户消息"}`,
+                    text: `记忆注入：${masterEnabledState.value ? "已启用（随消息以附件注入，不落盘）" : "已禁用"}`,
                     style: "bodySmall",
                     color: "onSecondaryContainer",
                 }),

@@ -4,8 +4,10 @@
  * 更好的记忆（记忆工具包）：
  *  - SystemPromptComposeHook(after_compose_system_prompt):
  *      * 注入记忆使用准则（可选开关，默认开启）
- *      * 注入记忆内容（可选，注入目标=system 时）
- *  - PromptFinalizeHook(before_finalize_prompt): 注入记忆内容到当前用户输入
+ *  - PromptFinalizeHook(before_send_to_model):
+ *      * 把记忆内容以附件（attachment）形式附加到最新用户输入末尾
+ *      * 不写入聊天记录：历史消息中的旧记忆不会反复占用上下文，
+ *        每次请求都实时携带最新记忆
  *  - InputMenuToggle: 输入菜单中的记忆注入总开关
  *  - Toolbox UI: 工具箱配置页面（记忆注入子功能 + 记忆使用准则子功能）
  *
@@ -23,7 +25,6 @@ import {
   logMemoryInjectorError,
   logMemoryInjectorInfo,
   setMemoryInjectorEnabled,
-  type MemoryInjectorSettings,
 } from "./shared";
 
 async function resolveAndBuildBlock(chatId?: string) {
@@ -35,7 +36,7 @@ async function resolveAndBuildBlock(chatId?: string) {
 
   logMemoryInjectorInfo(
     "inject.started",
-    `chat_id=${chatId || "-"} target=${settings.injectTarget} content_mode=${settings.contentMode}`
+    `chat_id=${chatId || "-"} content_mode=${settings.contentMode}`
   );
   try {
     const needFullContent = settings.contentMode === "title_body";
@@ -56,19 +57,11 @@ async function resolveAndBuildBlock(chatId?: string) {
   }
 }
 
-function shouldInjectSystem(settings: MemoryInjectorSettings): boolean {
-  return settings.injectTarget === "system";
-}
-
-function shouldInjectUser(settings: MemoryInjectorSettings): boolean {
-  return settings.injectTarget === "user";
-}
-
 /**
  * 系统提示词注入：after_compose_system_prompt 阶段。
- * 1. 若开启了"注入记忆使用准则"（默认开启），把准则块拼到 systemPrompt 末尾；
- * 2. 若注入目标为 system，再把记忆内容块拼到末尾。
- * 准则与记忆注入相互独立：关闭记忆内容注入不影响准则注入。
+ * 只注入记忆使用准则（可选开关，默认开启）。
+ * 记忆内容不在此注入——改由 PromptFinalizeHook 以附件方式附加，
+ * 避免系统提示词每轮变化破坏前缀缓存，也避免历史旧记忆占用上下文。
  */
 export async function onSystemPromptCompose(
   event: ToolPkg.SystemPromptComposeHookEvent
@@ -78,95 +71,62 @@ export async function onSystemPromptCompose(
     return null;
   }
   const settings = loadSettings();
-  let nextSystemPrompt = String(event.eventPayload?.systemPrompt || "");
-  let changed = false;
-
-  // 1. 记忆使用准则（独立于注入目标与记忆内容开关）
-  if (settings.injectGuidelines) {
-    const guidelines = buildGuidelinesBlock();
-    if (guidelines) {
-      nextSystemPrompt = nextSystemPrompt
-        ? `${nextSystemPrompt}\n\n${guidelines}`
-        : guidelines;
-      changed = true;
-    }
-  }
-
-  // 2. 记忆内容注入（仅当注入目标为 system）
-  if (shouldInjectSystem(settings)) {
-    const chatId = String(event.eventPayload?.chatId || "").trim() || undefined;
-    const block = await resolveAndBuildBlock(chatId);
-    if (block) {
-      nextSystemPrompt = nextSystemPrompt
-        ? `${nextSystemPrompt}\n\n${block}`
-        : block;
-      changed = true;
-    }
-  }
-
-  if (!changed) {
+  if (!settings.injectGuidelines) {
     return null;
   }
+
+  const guidelines = buildGuidelinesBlock();
+  if (!guidelines) {
+    return null;
+  }
+
+  const nextSystemPrompt = String(event.eventPayload?.systemPrompt || "");
+  const result = nextSystemPrompt
+    ? `${nextSystemPrompt}\n\n${guidelines}`
+    : guidelines;
   logMemoryInjectorInfo(
     "sysprompt.injected",
-    `guidelines=${settings.injectGuidelines} new_length=${nextSystemPrompt.length}`
+    `guidelines=true new_length=${result.length}`
   );
-  return { systemPrompt: nextSystemPrompt };
+  return { systemPrompt: result };
 }
 
 /**
- * 用户输入注入：before_finalize_prompt 阶段，
- * 把记忆块作为一条独立的 turn 追加到对话历史最后（用户消息之后），
- * 而不是拼进 processedInput 文本（那样它在语义上属于用户消息的一部分）。
+ * 用户输入注入：before_send_to_model 阶段（transient，不落盘）。
+ * 把记忆附件文本追加到最新用户输入末尾，只对本次发送给模型的请求生效，
+ * 不写入聊天记录——历史消息中看不到记忆，不会反复占用上下文。
  */
 export async function onPromptFinalize(
   event: ToolPkg.PromptFinalizeHookEvent
 ): Promise<ToolPkg.PromptHookObjectResult | null> {
   const stage = String(event.eventName || event.event || "");
-  if (stage !== "before_finalize_prompt") {
+  if (stage !== "before_send_to_model") {
     return null;
   }
 
   const settings = loadSettings();
-  if (!shouldInjectUser(settings)) {
-    return null;
-  }
-
-  const chatId = String(event.eventPayload?.chatId || "").trim() || undefined;
-  const block = await resolveAndBuildBlock(chatId);
-  if (!block) {
+  if (!settings.masterEnabled) {
     return null;
   }
 
   const payload = event.eventPayload || {};
-  const history = Array.isArray(payload.preparedHistory)
-    ? (payload.preparedHistory as ToolPkg.PromptTurn[])
-    : Array.isArray(payload.chatHistory)
-      ? (payload.chatHistory as ToolPkg.PromptTurn[])
-      : null;
-
-  if (history) {
-    // 独立块：在历史末尾追加一条 USER turn（内容就是 <memory> 块）
-    history.push({
-      kind: "USER",
-      content: block,
-      metadata: { memory: true },
-    });
-    logMemoryInjectorInfo(
-      "userinject.injected",
-      `mode=standalone_turn turns=${history.length} block_length=${block.length}`
-    );
-    return { preparedHistory: history };
-  }
-
-  // 回退：宿主未提供历史时，退化为追加到用户输入末尾（旧行为）
   const processedInput = String(payload.processedInput || payload.rawInput || "");
   if (!processedInput.trim()) {
     logMemoryInjectorInfo("userinject.skipped", "reason=empty_input");
     return null;
   }
+
+  const chatId = String(payload.chatId || "").trim() || undefined;
+  const block = await resolveAndBuildBlock(chatId);
+  if (!block) {
+    return null;
+  }
+
   const nextProcessedInput = `${processedInput}\n\n${block}`;
-  logMemoryInjectorInfo("userinject.injected", `mode=append_input new_length=${nextProcessedInput.length}`);
+  logMemoryInjectorInfo(
+    "userinject.injected",
+    `mode=attachment_transient new_length=${nextProcessedInput.length}`
+  );
   return { processedInput: nextProcessedInput };
 }
 
